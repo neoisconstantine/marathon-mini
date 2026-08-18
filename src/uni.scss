@@ -1,0 +1,48 @@
+/**
+ * uni-app 内置样式变量 + 马拉松小程序主题变量
+ * uni.scss 会被自动注入到每个 SFC 的 <style lang="scss">，无需手动 import
+ */
+
+/* ========== 马拉松小程序主题（全民健身绿色系） ========== */
+
+/* 主题色 */
+$mz-color-primary: #16A34A;        // 主色：活力绿
+$mz-color-primary-dark: #15803D;   // 强调色：深绿
+$mz-color-primary-light: #DCFCE7;  // 主色浅底（图标底、标签底）
+
+/* 页面与卡片 */
+$mz-bg-page: #F4F8F4;              // 页面浅绿灰底
+$mz-bg-card: #FFFFFF;              // 卡片白底
+$mz-card-radius: 24rpx;            // 卡片圆角
+$mz-card-shadow: 0 4rpx 20rpx rgba(22, 163, 74, 0.08); // 卡片柔和投影
+
+/* 文字 */
+$mz-text-main: #1F2937;            // 主文字
+$mz-text-secondary: #6B7280;       // 次级文字
+$mz-text-hint: #9CA3AF;            // 弱提示文字 / 未选中 tab 色
+
+/* 功能色 */
+$mz-color-warning: #D97706;        // 进行中（琥珀）
+$mz-color-finished: #9CA3AF;       // 已结束（灰）
+
+/* ========== 覆盖 uni-app 内置变量（保持生态组件兼容） ========== */
+$uni-color-primary: #16A34A;
+$uni-color-success: #22C55E;
+$uni-color-warning: #F59E0B;
+$uni-color-error: #EF4444;
+
+$uni-text-color: #1F2937;
+$uni-text-color-grey: #9CA3AF;
+$uni-bg-color-grey: #F4F8F4;
+$uni-border-color: #E5E7EB;
+
+$uni-bg-color: #F4F8F4;
+$uni-bg-color-hover: #F0F4F0;
+$uni-border-radius-sm: 8rpx;
+$uni-border-radius-base: 12rpx;
+$uni-border-radius-lg: 24rpx;
+
+/* 字号（沿用 uni 默认推荐值） */
+$uni-font-size-sm: 24rpx;
+$uni-font-size-base: 28rpx;
+$uni-font-size-lg: 32rpx;

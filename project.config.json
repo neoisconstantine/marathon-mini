@@ -1,0 +1,17 @@
+{
+  "description": "马拉松报名管理系统-小程序端（uni-app 工程根配置，miniprogramRoot 指向编译产物）",
+  "miniprogramRoot": "dist/dev/mp-weixin/",
+  "compileType": "miniprogram",
+  "appid": "touristappid",
+  "projectname": "马拉松报名",
+  "libVersion": "",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "postcss": false,
+    "minified": false,
+    "newFeature": true,
+    "bigPackageSizeSupport": true
+  },
+  "condition": {}
+}
