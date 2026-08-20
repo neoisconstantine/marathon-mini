@@ -13,15 +13,45 @@
 			}
 		},
 		{
-			"path": "pages/service/service",
-			"style": {
-				"navigationBarTitleText": "服务"
-			}
-		},
-		{
 			"path": "pages/mine/mine",
 			"style": {
 				"navigationBarTitleText": "我的"
+			}
+		},
+		{
+			"path": "pages/news/news",
+			"style": {
+				"navigationBarTitleText": "赛事咨讯"
+			}
+		},
+		{
+			"path": "pages/route-map/route-map",
+			"style": {
+				"navigationBarTitleText": "路线地图"
+			}
+		},
+		{
+			"path": "pages/live-track/live-track",
+			"style": {
+				"navigationBarTitleText": "实时轨迹"
+			}
+		},
+		{
+			"path": "pages/result/result",
+			"style": {
+				"navigationBarTitleText": "成绩查询"
+			}
+		},
+		{
+			"path": "pages/my-registrations/my-registrations",
+			"style": {
+				"navigationBarTitleText": "我的报名"
+			}
+		},
+		{
+			"path": "pages/my-results/my-results",
+			"style": {
+				"navigationBarTitleText": "我的成绩"
 			}
 		}
 	],
@@ -48,12 +78,6 @@
 				"text": "活动",
 				"iconPath": "static/tabbar/flag.png",
 				"selectedIconPath": "static/tabbar/flag-active.png"
-			},
-			{
-				"pagePath": "pages/service/service",
-				"text": "服务",
-				"iconPath": "static/tabbar/grid.png",
-				"selectedIconPath": "static/tabbar/grid-active.png"
 			},
 			{
 				"pagePath": "pages/mine/mine",

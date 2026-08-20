@@ -1,8 +1,10 @@
 <!-- 首页：顶部大图背景（占 60%+ 屏高）+ 功能入口 + 热门赛事 + 赛事公告 -->
 <template>
   <view class="page">
-    <!-- ===== 顶部大图区：海报背景占 62vh，自定义导航悬浮其上 ===== -->
-    <view class="hero">
+    <!-- ===== 顶部大图区：海报背景占 62vh，上滑时收起，自定义导航悬浮其上 ===== -->
+    <view class="hero" :style="{ height: heroHeight + 'px' }">
+      <!-- 大图背景层：微信 WXSS 的 background-image 不支持本地图片，必须用 <image> 标签；aspectFill 等效 cover 裁剪；高度固定，上滑时靠 translateY 视差收起 -->
+      <image class="hero-bg" :style="{ height: heroBgHeight + 'px', transform: 'translateY(' + heroBgOffset + 'px)' }" src="/static/hero.png" mode="aspectFill"></image>
       <!-- 状态栏占位：高度取自系统信息，保证刘海屏不被遮挡 -->
       <view :style="{ height: statusBarHeight + 'px' }"></view>
 
@@ -32,8 +34,8 @@
           <text class="entry-sub">一键报名热门赛事</text>
         </view>
       </view>
-      <!-- 赛事公告：公告单图标（占位提示） -->
-      <view class="entry-item" @tap="todoTip">
+      <!-- 赛事咨讯：公告单图标（跳转资讯列表页 /pages/news/news） -->
+      <view class="entry-item" @tap="goNews">
         <view class="sicon tint-amber">
           <view class="sh-doc">
             <view class="sh-doc-line l1"></view>
@@ -42,12 +44,12 @@
           </view>
         </view>
         <view class="entry-text">
-          <text class="entry-title">赛事公告</text>
-          <text class="entry-sub">重要通知早知道</text>
+          <text class="entry-title">赛事咨讯</text>
+          <text class="entry-sub">赛事动态早知道</text>
         </view>
       </view>
-      <!-- 成绩查询：放大镜图标（占位提示） -->
-      <view class="entry-item" @tap="todoTip">
+      <!-- 成绩查询：放大镜图标（跳转成绩查询页，选已结束赛事查成绩） -->
+      <view class="entry-item" @tap="goResult">
         <view class="sicon tint-teal">
           <view class="sh-mag-lens"></view>
           <view class="sh-mag-handle"></view>
@@ -67,13 +69,36 @@
           <text class="entry-sub">报名规则与答疑</text>
         </view>
       </view>
+      <!-- 路线地图：图钉图标（跳转路线地图页，内容待实现） -->
+      <view class="entry-item" @tap="goRouteMap">
+        <view class="sicon tint-teal">
+          <view class="sh-pin-head"></view>
+          <view class="sh-pin-tail"></view>
+        </view>
+        <view class="entry-text">
+          <text class="entry-title">路线地图</text>
+          <text class="entry-sub">赛道路线一键查看</text>
+        </view>
+      </view>
+      <!-- 实时轨迹：雷达图标（跳转实时轨迹页，内容待实现：当前参与赛事的位置轨迹展示） -->
+      <view class="entry-item" @tap="goLiveTrack">
+        <view class="sicon tint-green">
+          <view class="sh-track-ring r1"></view>
+          <view class="sh-track-ring r2"></view>
+          <view class="sh-track-dot"></view>
+        </view>
+        <view class="entry-text">
+          <text class="entry-title">实时轨迹</text>
+          <text class="entry-sub">比赛轨迹实时看</text>
+        </view>
+      </view>
     </view>
 
     <!-- ===== 热门赛事 ===== -->
     <view class="section">
       <view class="section-head">
         <text class="section-title">热门赛事</text>
-        <text class="section-more" @tap="goActivity">查看全部 ›</text>
+        <text class="section-more" @tap="goActivity">更多 ›</text>
       </view>
       <!-- 赛事卡片：点击跳转活动页 -->
       <view class="race-card mz-card" v-for="race in hotRaces" :key="race.id" @tap="goActivity">
@@ -92,11 +117,11 @@
       </view>
     </view>
 
-    <!-- ===== 赛事公告 ===== -->
+    <!-- ===== 赛事资讯 ===== -->
     <view class="section">
       <view class="section-head">
-        <text class="section-title">赛事公告</text>
-        <text class="section-more" @tap="todoTip">更多 ›</text>
+        <text class="section-title">赛事资讯</text>
+        <text class="section-more" @tap="goNews">更多 ›</text>
       </view>
       <view class="notice-card mz-card">
         <view class="notice-row" v-for="notice in notices" :key="notice.id">
@@ -114,18 +139,52 @@
 
 <script setup>
 import { ref } from 'vue'
+import { onPageScroll } from '@dcloudio/uni-app'
+import { getNoticeList } from '@/api/content'
+import { getEventList, mapEvent } from '@/api/event'
+import * as authApi from '@/api/auth'
 
 // 状态栏高度：自定义导航下需要手动占位（刘海屏适配）
+// 注意：微信新版已弃用 getSystemInfoSync（控制台会告警），优先用 getWindowInfo，低版本降级回退
 const statusBarHeight = ref(44)
-try {
-  const sys = uni.getSystemInfoSync()
-  if (sys && sys.statusBarHeight) {
-    statusBarHeight.value = sys.statusBarHeight
+let windowHeight = 667
+function readWindowInfo() {
+  try {
+    const win = uni.getWindowInfo()
+    if (win) {
+      if (win.statusBarHeight) statusBarHeight.value = win.statusBarHeight
+      if (win.windowHeight) windowHeight = win.windowHeight
+      return
+    }
+  } catch (e) { /* 旧版本无 getWindowInfo，走下方降级 */ }
+  try {
+    const sys = uni.getSystemInfoSync()
+    if (sys && sys.statusBarHeight) {
+      statusBarHeight.value = sys.statusBarHeight
+    }
+    if (sys && sys.windowHeight) {
+      windowHeight = sys.windowHeight
+    }
+  } catch (e) {
+    // 拿不到时使用默认值，不影响页面布局
+    console.log('getSystemInfoSync error', e)
   }
-} catch (e) {
-  // 拿不到时使用默认值，不影响页面布局
-  console.log('getSystemInfoSync error', e)
 }
+readWindowInfo()
+
+// ===== 顶部大图收起：上滑时背景视差收起，功能菜单悬浮（吸顶）在背景上 =====
+const HERO_FULL_H = Math.round(windowHeight * 0.62) // 展开高度：62% 屏高
+const HERO_COMPACT_H = Math.round(statusBarHeight.value + 150) // 收起下限：状态栏 + 导航高度
+const heroHeight = ref(HERO_FULL_H)
+const heroBgHeight = HERO_FULL_H // 背景图高度固定，靠 translateY 上滑实现"收起"（避免拉伸变形）
+const heroBgOffset = ref(0)
+
+onPageScroll((e) => {
+  const st = Math.max(0, e.scrollTop || 0)
+  // 背景高度随滚动收缩（底部边缘以 2 倍滚动速度上移，即视觉上的"收起"）
+  heroHeight.value = Math.max(HERO_COMPACT_H, HERO_FULL_H - st)
+  heroBgOffset.value = -st
+})
 
 // ===== 左上角定位：实时位置 + 点击地图选点修改 =====
 // 位置文案：默认全国，选点成功后展示所选位置名称
@@ -184,13 +243,31 @@ function onLocationTap() {
 // 页面加载时静默获取一次实时定位（首次会请求位置授权，拒绝也不阻塞使用）
 getLocation()
 
-// 热门赛事演示数据（对应 /api/event/list；状态对齐 event.status：报名中/进行中/已结束）
+// 热门赛事演示数据（后端不可用时的降级数据；字段对齐 mapEvent 输出）
 const hotRaces = ref([
   { id: 1, name: '2026 芒市国际马拉松', date: '2026-09-06', location: '云南 · 芒市', status: '报名中', registered: 3280, quota: 5000, percent: 66 },
   { id: 2, name: '2026 昆明高原半程马拉松', date: '2026-04-20', location: '云南 · 昆明', status: '已结束', registered: 2980, quota: 3000, percent: 99 },
   { id: 3, name: '2026 大理环洱海马拉松', date: '2026-10-11', location: '云南 · 大理', status: '报名中', registered: 640, quota: 2000, percent: 32 },
-  { id: 4, name: '2025 抚仙湖高原马拉松', date: '2025-12-07', location: '云南 · 玉溪', status: '已结束', registered: 2560, quota: 2560, percent: 100 },
 ])
+
+// 拉取热门赛事（/api/event/list）：按已报名人数取前 3，失败时保持演示数据
+function loadHotRaces() {
+  getEventList()
+    .then((list) => {
+      if (Array.isArray(list) && list.length > 0) {
+        hotRaces.value = list
+          .map(mapEvent)
+          .sort((a, b) => b.registered - a.registered)
+          .slice(0, 3)
+      }
+    })
+    .catch((err) => {
+      console.log('热门赛事加载失败，使用演示数据', err)
+    })
+}
+
+// 页面加载时拉取热门赛事
+loadHotRaces()
 
 // ===== 页面骨架阶段的入口跳转 =====
 
@@ -199,48 +276,130 @@ function goActivity() {
   uni.switchTab({ url: '/pages/activity/activity' })
 }
 
+// 打开赛事咨讯列表页（对接 /api/content/notice）
+function goNews() {
+  uni.navigateTo({ url: '/pages/news/news' })
+}
+
+// 打开路线地图页（需登录：轨迹查看属个人服务）
+function goRouteMap() {
+  requireLoginThen(() => uni.navigateTo({ url: '/pages/route-map/route-map' }))
+}
+
+// 打开实时轨迹页（需登录：基于我的报名赛事生成轨迹）
+function goLiveTrack() {
+  requireLoginThen(() => uni.navigateTo({ url: '/pages/live-track/live-track' }))
+}
+
+/** 轨迹类功能统一登录门槛：未登录弹窗提示，确认后静默登录再执行跳转 */
+function requireLoginThen(afterLogin) {
+  const { isLoggedIn, ensureLogin } = authApi
+  if (isLoggedIn()) {
+    afterLogin()
+    return
+  }
+  uni.showModal({
+    title: '未登录',
+    content: '轨迹查看需要先登录，是否立即登录？',
+    success: async (res) => {
+      if (!res.confirm) return
+      uni.showLoading({ title: '登录中' })
+      try {
+        await ensureLogin()
+        uni.hideLoading()
+        afterLogin()
+      } catch (e) {
+        uni.hideLoading()
+        uni.showToast({ title: '登录失败，请重试', icon: 'none' })
+      }
+    },
+  })
+}
+
+// 打开成绩查询页（选择已结束赛事查询成绩）
+function goResult() {
+  uni.navigateTo({ url: '/pages/result/result' })
+}
+
 // 未开发功能占位提示（后续接入对应接口后替换为真实跳转）
 function todoTip() {
   uni.showToast({ title: '功能建设中，敬请期待', icon: 'none' })
 }
 
-// 赛事公告演示数据
+// ===== 赛事资讯：优先拉取后端 /api/content/notice（需 wx-token），失败时降级到本地演示数据 =====
+// 演示数据（对应 /api/content/notice 返回的 Content 列表）
 const notices = ref([
   { id: 1, title: '2026 芒市国际马拉松报名须知', date: '01-15' },
   { id: 2, title: '关于调整赛事物资领取时间的通知', date: '01-12' },
   { id: 3, title: '2025 年 12 月赛事成绩公示与证书下载', date: '01-08' },
 ])
+
+// 后端 startTime（"yyyy-MM-dd HH:mm:ss"）转为列表展示的 "MM-DD"
+function formatNoticeDate(time) {
+  const s = String(time || '')
+  return s.length >= 10 ? s.slice(5, 10) : s
+}
+
+// 拉取资讯：request 层会自动登录/重登并携带 wx-token；失败保持演示数据不阻塞页面。
+// 首页只展示前 3 条，更多点击"更多 ›"进入资讯列表页查看全部。
+function loadNotices() {
+  getNoticeList()
+    .then((list) => {
+      if (Array.isArray(list) && list.length > 0) {
+        notices.value = list
+          .map((item) => ({
+            id: item.id,
+            title: item.title || '',
+            date: formatNoticeDate(item.startTime),
+          }))
+          .slice(0, 3)
+      }
+    })
+    .catch((err) => {
+      console.log('资讯加载失败，使用演示数据', err)
+    })
+}
+
+// 页面加载时拉取资讯
+loadNotices()
 </script>
 
 <style scoped lang="scss">
-/* ===== 顶部大图区：海报背景占 62vh，自定义导航悬浮其上 ===== */
+/* ===== 顶部大图区：高度由 onPageScroll 动态绑定（上滑收起） ===== */
 .hero {
   position: relative;
-  min-height: 62vh;
+  box-sizing: border-box;
   border-radius: 0 0 32rpx 32rpx;
   overflow: hidden;
-  /* 大图背景：src/static/hero.png 由 scripts/gen-hero-image.js 生成，可直接替换为真实海报 */
-  background-image: url('/static/hero.png');
-  background-size: cover;
-  background-position: center;
   padding-bottom: 72rpx;
 }
 
-/* 顶部压暗渐变：保证白色导航文字在亮色海报上可读 */
+/* 大图背景层：<image> 标签铺满（WXSS background-image 不支持本地图，见微信官方文档）；
+   高度固定由脚本计算，transform 位移实现视差收起，height/transform 由 onPageScroll 绑定 */
+.hero-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 0;
+}
+
+/* 顶部压暗渐变：海报上半部较亮（实测亮度 ~230），白色导航文字需较强遮罩保证可读 */
 .hero::after {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 260rpx;
-  background: linear-gradient(180deg, rgba(20, 83, 45, 0.5), rgba(20, 83, 45, 0));
+  height: 320rpx;
+  background: linear-gradient(180deg, rgba(20, 83, 45, 0.72), rgba(20, 83, 45, 0));
+  z-index: 1;
   pointer-events: none;
 }
 
 .hero-nav {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   padding: 20rpx 32rpx 0;
 }
 
@@ -292,8 +451,11 @@ const notices = ref([
   letter-spacing: 2rpx;
 }
 
-/* ===== 2x2 功能入口（上移重叠到海报底部，营造层次感） ===== */
+/* ===== 2x2 功能入口：上移重叠到海报底部，上滑时吸顶悬浮在背景上 ===== */
 .entry-grid {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   margin: -48rpx 24rpx 0;
   padding: 24rpx 16rpx;
   display: flex;
@@ -404,12 +566,84 @@ const notices = ref([
   transform: rotate(45deg);
 }
 
-/* 问号（常见问题） */
+/* 问号（常见问题）：绝对定位铺满图标盒并居中，与其他三个图标视觉对齐 */
 .sh-q {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  text-align: center;
+  line-height: 80rpx;
   font-size: 52rpx;
   font-weight: 700;
   color: #D97706;
-  line-height: 80rpx;
+}
+
+/* 定位图钉（路线地图）：圆头 + 白芯 + 下尖角 */
+.sh-pin-head {
+  position: absolute;
+  left: 24rpx;
+  top: 14rpx;
+  width: 32rpx;
+  height: 32rpx;
+  border-radius: 50%;
+  background-color: #0D9488;
+}
+
+.sh-pin-head::after {
+  content: '';
+  position: absolute;
+  left: 11rpx;
+  top: 11rpx;
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: 50%;
+  background-color: #ffffff;
+}
+
+.sh-pin-tail {
+  position: absolute;
+  left: 34rpx;
+  top: 46rpx;
+  width: 0;
+  height: 0;
+  border-left: 6rpx solid transparent;
+  border-right: 6rpx solid transparent;
+  border-top: 12rpx solid #0D9488;
+}
+
+/* 雷达（实时轨迹）：双环 + 中心点，示意实时位置信号 */
+.sh-track-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 4rpx solid #16A34A;
+}
+
+.sh-track-ring.r1 {
+  left: 28rpx;
+  top: 28rpx;
+  width: 24rpx;
+  height: 24rpx;
+}
+
+.sh-track-ring.r2 {
+  left: 16rpx;
+  top: 16rpx;
+  width: 48rpx;
+  height: 48rpx;
+  opacity: 0.45;
+}
+
+.sh-track-dot {
+  position: absolute;
+  left: 36rpx;
+  top: 36rpx;
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 50%;
+  background-color: #16A34A;
 }
 
 /* 名额进度条（event.registered / event.total_quota） */

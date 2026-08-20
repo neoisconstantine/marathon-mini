@@ -1,4 +1,4 @@
-<!-- 我的页：绿色用户卡片 + 菜单列表（静态演示数据） -->
+<!-- 我的页：用户卡片（登录态）+ 菜单列表 -->
 <template>
   <view class="page">
     <!-- 用户卡片 -->
@@ -9,16 +9,17 @@
         <view class="avatar-body"></view>
       </view>
       <view class="user-info">
-        <text class="user-name">未登录</text>
-        <text class="user-sub">登录后享受更多服务</text>
+        <text class="user-name">{{ loggedIn ? (userInfo.name || '微信用户') : '未登录' }}</text>
+        <text class="user-sub">{{ loggedIn ? maskPhone(userInfo.phone) : '登录后享受更多服务' }}</text>
       </view>
-      <button class="login-btn" size="mini" @tap="onLogin">登录</button>
+      <button v-if="!loggedIn" class="login-btn" size="mini" @tap="onLogin">登录</button>
+      <button v-else class="login-btn" size="mini" @tap="onLogout">退出</button>
     </view>
 
     <!-- 菜单列表 -->
     <view class="menu-card mz-card">
-      <!-- 我的报名：旗帜（占位提示） -->
-      <view class="menu-row" @tap="todoTip">
+      <!-- 我的报名：接真实报名列表 -->
+      <view class="menu-row" @tap="goRegistrations">
         <view class="menu-icon tint-green">
           <view class="sh-flag-pole"></view>
           <view class="sh-flag-cloth"></view>
@@ -26,8 +27,8 @@
         <text class="menu-title">我的报名</text>
         <text class="menu-arrow">›</text>
       </view>
-      <!-- 我的成绩：柱状图（占位提示） -->
-      <view class="menu-row" @tap="todoTip">
+      <!-- 我的成绩：接真实成绩列表 -->
+      <view class="menu-row" @tap="goResults">
         <view class="menu-icon tint-teal">
           <view class="sh-bar b1"></view>
           <view class="sh-bar b2"></view>
@@ -89,16 +90,104 @@
 </template>
 
 <script setup>
-// ===== 页面骨架阶段的入口跳转 =====
+import { ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
+import { isLoggedIn as hasToken, getMe, ensureLogin, logout } from '@/api/auth'
 
-// 未开发功能占位提示（后续接入 /api/auth/wx-login、/api/registration/my、/api/result/my 后替换为真实跳转）
-function todoTip() {
-  uni.showToast({ title: '功能建设中，敬请期待', icon: 'none' })
+const loggedIn = ref(false)
+const userInfo = ref({})
+
+onShow(async () => {
+  loggedIn.value = hasToken()
+  if (loggedIn.value) {
+    try {
+      userInfo.value = (await getMe()) || {}
+    } catch (e) {
+      // 401 时 request 层已自动重登录并重试；仍失败说明会话不可用
+      loggedIn.value = false
+    }
+  }
+})
+
+/** 登录：微信静默登录（无需弹授权窗），成功后拉取用户信息 */
+async function onLogin() {
+  uni.showLoading({ title: '登录中' })
+  try {
+    await ensureLogin()
+    loggedIn.value = true
+    userInfo.value = (await getMe()) || {}
+    uni.hideLoading()
+    uni.showToast({ title: '登录成功', icon: 'success' })
+  } catch (e) {
+    uni.hideLoading()
+    uni.showToast({ title: '登录失败，请重试', icon: 'none' })
+  }
 }
 
-// 登录按钮：骨架阶段占位提示（后续对接 /api/auth/wx-login）
-function onLogin() {
-  uni.showToast({ title: '微信登录建设中，敬请期待', icon: 'none' })
+/** 退出登录：清除本地 token */
+function onLogout() {
+  uni.showModal({
+    title: '提示',
+    content: '确定退出登录吗？',
+    success: (res) => {
+      if (res.confirm) {
+        logout()
+        loggedIn.value = false
+        userInfo.value = {}
+      }
+    },
+  })
+}
+
+/** 我的报名：未登录先提示登录 */
+function goRegistrations() {
+  if (!loggedIn.value) {
+    promptLogin('查看我的报名')
+    return
+  }
+  uni.navigateTo({ url: '/pages/my-registrations/my-registrations' })
+}
+
+/** 我的成绩：未登录先提示登录 */
+function goResults() {
+  if (!loggedIn.value) {
+    promptLogin('查看我的成绩')
+    return
+  }
+  uni.navigateTo({ url: '/pages/my-results/my-results' })
+}
+
+/** 未登录引导：弹窗确认后静默登录 */
+function promptLogin(feature) {
+  uni.showModal({
+    title: '未登录',
+    content: `${feature}需要先登录，是否立即登录？`,
+    success: async (res) => {
+      if (!res.confirm) return
+      uni.showLoading({ title: '登录中' })
+      try {
+        await ensureLogin()
+        loggedIn.value = true
+        userInfo.value = (await getMe()) || {}
+        uni.hideLoading()
+        uni.showToast({ title: '登录成功', icon: 'success' })
+      } catch (e) {
+        uni.hideLoading()
+        uni.showToast({ title: '登录失败，请重试', icon: 'none' })
+      }
+    },
+  })
+}
+
+/** 手机号脱敏：152****2718 */
+function maskPhone(phone) {
+  if (!phone || phone.length < 7) return ''
+  return phone.slice(0, 3) + '****' + phone.slice(-4)
+}
+
+// 未开发功能占位提示
+function todoTip() {
+  uni.showToast({ title: '功能建设中，敬请期待', icon: 'none' })
 }
 </script>
 
@@ -163,7 +252,7 @@ function onLogin() {
   color: rgba(255, 255, 255, 0.85);
 }
 
-/* 登录按钮：白色胶囊 */
+/* 登录/退出按钮：白色胶囊 */
 .login-btn {
   margin: 0;
   padding: 0 32rpx;
