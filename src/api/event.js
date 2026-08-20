@@ -10,7 +10,7 @@ const STATUS_TEXT = { 1: '报名中', 2: '进行中', 3: '已结束' }
 const STATUS_CLASS = { 1: 's-open', 2: 's-ongoing', 3: 's-done' }
 
 // 后端 Event 暂无报名费字段，报名支付模拟暂用本地默认值（待后端补充费用字段后移除）
-const DEFAULT_FEE = 150
+// 注意：费用展示统一使用 mapEvent 输出的 fee（元），支付时 ×100 转分为微信支付金额单位
 
 /** 赛事列表（分页）：GET /api/event/list；status 传数字（1/2/3）可服务端过滤，不传时后端自动剔除未发布
  *  返回 { list, total }，供列表页分页（onReachBottom 加载更多）使用 */
@@ -81,6 +81,6 @@ export function mapEvent(e) {
     registered: e.registered || 0,
     quota: e.totalQuota || 0,
     percent: calcPercent(e.registered, e.totalQuota),
-    fee: DEFAULT_FEE, // TODO 后端暂无报名费字段，待补充后改为 e.fee
+    fee: e.fee !== undefined && e.fee !== null ? Number(e.fee) : 0, // 报名费用（元），后端 fee 字段；0 表示免费
   }
 }

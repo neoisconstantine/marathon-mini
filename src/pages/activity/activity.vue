@@ -63,7 +63,8 @@
 
     <!-- 报名表单弹层：姓名 + 手机号（微信快捷获取/手动输入）→ 支付 → 保存后台 -->
     <view class="sheet-mask" v-if="formVisible" @tap="closeForm">
-      <view class="sheet" @tap.stop>
+      <!-- 键盘弹起时动态抬高弹层底部，避免输入框被键盘遮挡 -->
+      <view class="sheet" @tap.stop :style="sheetStyle">
         <view class="sheet-title">报名信息</view>
         <view class="sheet-race">
           <text class="sheet-race-name">{{ formRace.name }}</text>
@@ -74,21 +75,21 @@
         <view class="form-item">
           <text class="form-label">姓名</text>
           <input class="form-input" v-model="form.name" placeholder="请输入真实姓名"
-            placeholder-class="ph" />
+            placeholder-class="ph" cursor-spacing="20" />
         </view>
 
         <!-- 手机号：手动输入 -->
         <view class="form-item">
           <text class="form-label">手机号</text>
           <input class="form-input" v-model="form.phone" type="number" maxlength="11"
-            placeholder="用于接收赛事通知" placeholder-class="ph" />
+            placeholder="用于接收赛事通知" placeholder-class="ph" cursor-spacing="20" />
         </view>
 
         <!-- 身份证号：报名必填（赛事实名制，后端回填参赛用户资料） -->
         <view class="form-item">
           <text class="form-label">身份证号</text>
           <input class="form-input" v-model="form.idCard" maxlength="18"
-            placeholder="请输入18位身份证号码" placeholder-class="ph" />
+            placeholder="请输入18位身份证号码" placeholder-class="ph" cursor-spacing="20" />
         </view>
 
         <!-- 微信手机号快捷获取（需已认证小程序，游客模式会失败降级手动输入） -->
@@ -111,7 +112,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { onReachBottom, onShow } from '@dcloudio/uni-app'
+import { onReachBottom, onShow, onHide, onUnload } from '@dcloudio/uni-app'
 import { payForRegistration } from '@/api/payment'
 import { getEventList, mapEvent, statusWeight } from '@/api/event'
 import { createRegistration, getPhoneByCode } from '@/api/registration'
@@ -212,9 +213,41 @@ onReachBottom(() => {
   loadEvents(true)
 })
 
-// 页面每次显示：同步自定义 tabBar 选中态（活动 tab = 1）
+// 页面每次显示：同步自定义 tabBar 选中态（活动 tab = 1）+ 注册键盘高度监听
 onShow(() => {
   syncTabBarSelected(1)
+  // #ifdef MP-WEIXIN
+  uni.onKeyboardHeightChange(onKeyboardHeightChange)
+  // #endif
+})
+
+// 页面隐藏/卸载：注销键盘高度监听，防止内存泄漏
+onHide(() => {
+  // #ifdef MP-WEIXIN
+  uni.offKeyboardHeightChange(onKeyboardHeightChange)
+  // #endif
+})
+
+onUnload(() => {
+  // #ifdef MP-WEIXIN
+  uni.offKeyboardHeightChange(onKeyboardHeightChange)
+  // #endif
+})
+
+// ===== 报名表单键盘遮挡适配 =====
+// 弹层是 position: fixed 底部抽屉，真机上 iOS fixed 元素不跟随键盘上推，
+// 需监听键盘高度动态抬高弹层底部（onKeyboardHeightChange 基础库 2.13.3+，项目 3.17.1 可用）
+const keyboardHeight = ref(0)
+
+function onKeyboardHeightChange(e) {
+  keyboardHeight.value = e && e.height ? e.height : 0
+}
+
+// 键盘弹起时 sheet 底部 padding = 键盘高度，输入框整体被抬到键盘上方
+const sheetStyle = computed(() => {
+  return keyboardHeight.value > 0
+    ? { paddingBottom: keyboardHeight.value + 'px' }
+    : {}
 })
 
 // 页面加载时拉取赛事列表
@@ -524,6 +557,9 @@ function onSubmitForm() {
   border-radius: 32rpx 32rpx 0 0;
   padding: 40rpx 32rpx calc(40rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
+  /* 内容超高（尤其键盘弹起）时弹层内部滚动，输入框可滚到键盘上方 */
+  max-height: 80vh;
+  overflow-y: auto;
 }
 
 .sheet-title {
