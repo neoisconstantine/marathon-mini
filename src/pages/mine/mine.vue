@@ -94,6 +94,8 @@
     <text class="version-text">马拉松报名 · 版本 1.0.0</text>
 
     <view class="safe-bottom"></view>
+    <!-- 自定义 tabBar 占位 -->
+    <view class="tabbar-space"></view>
   </view>
 </template>
 
@@ -101,11 +103,14 @@
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { isLoggedIn as hasToken, getMe, ensureLogin, logout } from '@/api/auth'
+import { syncTabBarSelected } from '@/utils/tabbar'
 
 const loggedIn = ref(false)
 const userInfo = ref({})
 
 onShow(async () => {
+  // 同步自定义 tabBar 选中态（我的 tab = 2）
+  syncTabBarSelected(2)
   loggedIn.value = hasToken()
   if (loggedIn.value) {
     try {
@@ -472,5 +477,10 @@ function todoTip() {
   text-align: center;
   font-size: 22rpx;
   color: #B8BEC9;
+}
+
+/* 自定义 tabBar 悬浮占位（不占文档流，需预留底部高度） */
+.tabbar-space {
+  height: 100rpx;
 }
 </style>

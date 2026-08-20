@@ -1,23 +1,26 @@
 <!-- 首页：顶部大图背景（占 60%+ 屏高）+ 功能入口 + 热门赛事 + 赛事公告 -->
 <template>
   <view class="page">
-    <!-- ===== 顶部大图区：海报背景占 62vh，上滑时收起，自定义导航悬浮其上 ===== -->
+    <!-- ===== 顶部大图区：海报背景占 62vh，高度固定，内容随滚动 transform 上移收起（transform 不触发布局重排，避免滚动到底部抖动） ===== -->
     <view class="hero" :style="{ height: heroHeight + 'px' }">
       <!-- 大图背景层：微信 WXSS 的 background-image 不支持本地图片，必须用 <image> 标签；aspectFill 等效 cover 裁剪；高度固定，上滑时靠 translateY 视差收起 -->
       <image class="hero-bg" :style="{ height: heroBgHeight + 'px', transform: 'translateY(' + heroBgOffset + 'px)' }" src="/static/hero.png" mode="aspectFill"></image>
-      <!-- 状态栏占位：高度取自系统信息，保证刘海屏不被遮挡 -->
-      <view :style="{ height: statusBarHeight + 'px' }"></view>
+      <!-- 内容层（状态栏占位 + 导航）随滚动上移收起：只位移不改变布局高度 -->
+      <view class="hero-content" :style="{ transform: 'translateY(' + heroContentOffset + 'px)' }">
+        <!-- 状态栏占位：高度取自系统信息，保证刘海屏不被遮挡 -->
+        <view :style="{ height: statusBarHeight + 'px' }"></view>
 
-      <view class="hero-nav">
-        <!-- 定位行：展示实时位置，点击可重新选点定位 -->
-        <view class="location" hover-class="location-hover" @tap="onLocationTap">
-          <view class="location-dot"></view>
-          <text class="location-text">{{ locationText }}</text>
-          <text class="location-more">▾</text>
+        <view class="hero-nav">
+          <!-- 定位行：展示实时位置，点击可重新选点定位 -->
+          <view class="location" hover-class="location-hover" @tap="onLocationTap">
+            <view class="location-dot"></view>
+            <text class="location-text">{{ locationText }}</text>
+            <text class="location-more">▾</text>
+          </view>
+          <!-- 应用标题与口号 -->
+          <text class="hero-title">马拉松报名</text>
+          <text class="hero-slogan">健康生活 幸福奔跑</text>
         </view>
-        <!-- 应用标题与口号 -->
-        <text class="hero-title">马拉松报名</text>
-        <text class="hero-slogan">健康生活 幸福奔跑</text>
       </view>
     </view>
 
@@ -92,7 +95,7 @@
         </view>
         <view class="entry-text">
           <text class="entry-title">实时轨迹</text>
-          <text class="entry-sub">比赛轨迹实时看</text>
+          <text class="entry-sub">赛后比赛轨迹展示</text>
         </view>
       </view>
     </view>
@@ -137,6 +140,8 @@
 
     <!-- 底部安全区留白 -->
     <view class="safe-bottom"></view>
+    <!-- 自定义 tabBar 占位：悬浮层不占文档流，需预留底部高度避免内容被遮挡 -->
+    <view class="tabbar-space"></view>
   </view>
 </template>
 
@@ -146,6 +151,7 @@ import { onPageScroll, onShow } from '@dcloudio/uni-app'
 import { getNoticeList } from '@/api/content'
 import { getEventList, mapEvent, statusWeight } from '@/api/event'
 import * as authApi from '@/api/auth'
+import { syncTabBarSelected } from '@/utils/tabbar'
 
 // 状态栏高度：自定义导航下需要手动占位（刘海屏适配）
 // 注意：微信新版已弃用 getSystemInfoSync（控制台会告警），优先用 getWindowInfo，低版本降级回退
@@ -177,15 +183,16 @@ readWindowInfo()
 
 // ===== 顶部大图收起：上滑时背景视差收起，功能菜单悬浮（吸顶）在背景上 =====
 const HERO_FULL_H = Math.round(windowHeight * 0.62) // 展开高度：62% 屏高
-const HERO_COMPACT_H = Math.round(statusBarHeight.value + 150) // 收起下限：状态栏 + 导航高度
-const heroHeight = ref(HERO_FULL_H)
+const heroHeight = ref(HERO_FULL_H) // hero 容器高度固定，不再随滚动修改（避免布局重排导致滚动到底部抖动）
 const heroBgHeight = HERO_FULL_H // 背景图高度固定，靠 translateY 上滑实现"收起"（避免拉伸变形）
 const heroBgOffset = ref(0)
+const heroContentOffset = ref(0) // 内容层（状态栏占位 + 导航）位移：滚动时上移收起
 
 onPageScroll((e) => {
   const st = Math.max(0, e.scrollTop || 0)
-  // 背景高度随滚动收缩（底部边缘以 2 倍滚动速度上移，即视觉上的"收起"）
-  heroHeight.value = Math.max(HERO_COMPACT_H, HERO_FULL_H - st)
+  // 只做 transform 位移，不改变任何布局高度：页面总高度恒定，
+  // 滚动到底部时不再有重排，消除抖动/回弹
+  heroContentOffset.value = -st
   heroBgOffset.value = -st
 })
 
@@ -280,6 +287,7 @@ loadHotRaces()
 // 注：首次登录的手机号授权引导由全局组件 phone-guide 处理（登录成功且 isNewUser 时触发）
 onShow(() => {
   loadHotRaces()
+  syncTabBarSelected(0)
 })
 
 // ===== 页面骨架阶段的入口跳转 =====
@@ -387,13 +395,20 @@ loadNotices()
 </script>
 
 <style scoped lang="scss">
-/* ===== 顶部大图区：高度由 onPageScroll 动态绑定（上滑收起） ===== */
+/* ===== 顶部大图区：高度固定，内容层 transform 位移实现收起（不触发布局重排） ===== */
 .hero {
   position: relative;
   box-sizing: border-box;
   border-radius: 0 0 32rpx 32rpx;
   overflow: hidden;
   padding-bottom: 72rpx;
+}
+
+/* 内容层（状态栏占位 + 导航）：随滚动 translateY 上移收起；transform 不影响文档流布局 */
+.hero-content {
+  position: relative;
+  z-index: 2;
+  will-change: transform;
 }
 
 /* 大图背景层：<image> 标签铺满（WXSS background-image 不支持本地图，见微信官方文档）；
@@ -835,5 +850,10 @@ loadNotices()
   font-size: 22rpx;
   color: #9CA3AF;
   flex-shrink: 0;
+}
+
+/* 自定义 tabBar 悬浮占位（不占文档流，需预留底部高度） */
+.tabbar-space {
+  height: 100rpx;
 }
 </style>

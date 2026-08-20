@@ -104,15 +104,18 @@
     </view>
 
     <view class="safe-bottom"></view>
+    <!-- 自定义 tabBar 占位 -->
+    <view class="tabbar-space"></view>
   </view>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { onReachBottom } from '@dcloudio/uni-app'
+import { onReachBottom, onShow } from '@dcloudio/uni-app'
 import { payForRegistration } from '@/api/payment'
 import { getEventList, mapEvent, statusWeight } from '@/api/event'
 import { createRegistration, getPhoneByCode } from '@/api/registration'
+import { syncTabBarSelected } from '@/utils/tabbar'
 
 // 筛选 tab 定义（对齐 event.status：报名中/进行中/已结束；未发布不下发到 C 端）
 const tabs = [
@@ -177,7 +180,8 @@ function loadEvents(append = false) {
       races.value = append ? [...races.value, ...mapped] : mapped
       total.value = t
       pageNum.value = pn
-      finished.value = races.value.length >= t
+      // 本页为空（已到底）或已加载条数达到 total → 没有更多；防止后端 total 虚高时永远"上拉加载更多"
+      finished.value = mapped.length === 0 || races.value.length >= t
       isDemo.value = false
     })
     .catch((err) => {
@@ -206,6 +210,11 @@ watch(activeTab, () => {
 onReachBottom(() => {
   if (isDemo.value || loading.value || finished.value) return
   loadEvents(true)
+})
+
+// 页面每次显示：同步自定义 tabBar 选中态（活动 tab = 1）
+onShow(() => {
+  syncTabBarSelected(1)
 })
 
 // 页面加载时拉取赛事列表
@@ -388,6 +397,11 @@ function onSubmitForm() {
   }
 }
 
+/* 自定义 tabBar 悬浮占位（不占文档流，需预留底部高度） */
+.tabbar-space {
+  height: 100rpx;
+}
+
 .race-card {
   padding: 24rpx;
   margin-bottom: 20rpx;
@@ -490,7 +504,8 @@ function onSubmitForm() {
   background: linear-gradient(90deg, #86EFAC, #16A34A);
 }
 
-/* ===== 报名表单弹层（底部半屏抽屉） ===== */
+/* ===== 报名表单弹层（底部半屏抽屉） =====
+   z-index 需高于自定义 tabBar(9999)，否则提交按钮被底部栏遮挡 */
 .sheet-mask {
   position: fixed;
   top: 0;
@@ -498,7 +513,7 @@ function onSubmitForm() {
   right: 0;
   bottom: 0;
   background-color: rgba(17, 24, 39, 0.55);
-  z-index: 100;
+  z-index: 99999;
   display: flex;
   align-items: flex-end;
 }

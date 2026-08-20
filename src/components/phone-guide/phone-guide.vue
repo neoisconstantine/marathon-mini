@@ -78,6 +78,7 @@ async function onGuidePhone(e) {
 </script>
 
 <style scoped lang="scss">
+/* 首次登录手机号授权引导：全屏模态，z-index 需高于自定义 tabBar(9999) */
 .guide-mask {
   position: fixed;
   top: 0;
@@ -85,7 +86,7 @@ async function onGuidePhone(e) {
   right: 0;
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.55);
-  z-index: 999;
+  z-index: 99999;
   display: flex;
   align-items: center;
   justify-content: center;
