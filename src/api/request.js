@@ -25,38 +25,43 @@ export function setToken(token) {
   userState.token = token
 }
 
-/** 微信登录换取小程序 token（dev 模式后端 appid 为空，任意 code 可用） */
+// 登录进行中共享的 Promise：并发调用 wxLogin 时复用同一次登录，
+// 避免 App 启动强制登录与页面 401 重试同时触发两次 wxLogin、注册出两个模拟用户
+let wxLoginPending = null
+
+/** 微信登录换取小程序 token（dev 模式后端 appid 为空，任意 code 可用，openid 随 code 变化） */
 export function wxLogin() {
-  const doLogin = (code) =>
-    new Promise((resolve, reject) => {
-      uni.request({
-        url: BASE_URL + '/api/auth/wx-login',
-        method: 'POST',
-        data: { code },
-        success: (res) => {
-          let body = res.data
-          if (typeof body === 'string') {
-            try {
-              body = JSON.parse(body)
-            } catch (e) {
-              body = null
+  if (wxLoginPending) return wxLoginPending
+  wxLoginPending = new Promise((resolve, reject) => {
+    const doLogin = (code) =>
+      new Promise((resolve, reject) => {
+        uni.request({
+          url: BASE_URL + '/api/auth/wx-login',
+          method: 'POST',
+          data: { code },
+          success: (res) => {
+            let body = res.data
+            if (typeof body === 'string') {
+              try {
+                body = JSON.parse(body)
+              } catch (e) {
+                body = null
+              }
             }
-          }
-          if (body && body.code === 0 && body.data && body.data.token) {
-            setToken(body.data.token)
-            // 首次登录（后端自动注册的新用户）：弹出全局模态引导授权手机号
-            if (body.data.isNewUser) {
-              userState.guideVisible = true
+            if (body && body.code === 0 && body.data && body.data.token) {
+              setToken(body.data.token)
+              // 首次登录（后端自动注册的新用户）：弹出全局模态引导授权手机号
+              if (body.data.isNewUser) {
+                userState.guideVisible = true
+              }
+              resolve(body.data.token)
+            } else {
+              reject(new Error((body && (body.message || body.msg)) || '登录失败'))
             }
-            resolve(body.data.token)
-          } else {
-            reject(new Error((body && (body.message || body.msg)) || '登录失败'))
-          }
-        },
-        fail: reject,
+          },
+          fail: reject,
+        })
       })
-    })
-  return new Promise((resolve, reject) => {
     uni.login({
       provider: 'weixin',
       success: (loginRes) => {
@@ -67,7 +72,10 @@ export function wxLogin() {
         doLogin('dev_mock').then(resolve).catch(reject)
       },
     })
+  }).finally(() => {
+    wxLoginPending = null
   })
+  return wxLoginPending
 }
 
 /**
@@ -84,10 +92,38 @@ function cleanData(data) {
 }
 
 /**
+ * 写操作防连点：同一 POST/PUT 请求（url+参数相同）在间隔内重复发起时直接拒绝，
+ * 兜住页面忘记加 loading 锁的连点场景（报名等关键提交另有 submitting 锁，双保险）
+ * GET 不限制（下拉刷新/onShow 刷新列表是合法重复）
+ */
+const DUPLICATE_SUBMIT_INTERVAL = 1000
+const recentSubmits = new Map()
+
+function rejectDuplicateSubmit(method, url, data) {
+  const key = method + ' ' + url + ' ' + JSON.stringify(data || {})
+  const now = Date.now()
+  const last = recentSubmits.get(key)
+  if (last && now - last < DUPLICATE_SUBMIT_INTERVAL) {
+    return true
+  }
+  recentSubmits.set(key, now)
+  // 惰性清理：条目过多时移除已过期的，防止 map 无限增长
+  if (recentSubmits.size > 100) {
+    recentSubmits.forEach((t, k) => {
+      if (now - t > DUPLICATE_SUBMIT_INTERVAL) recentSubmits.delete(k)
+    })
+  }
+  return false
+}
+
+/**
  * 通用请求：自动携带 wx-token，401 时自动重新登录后重试一次
  * @returns Promise<data>（已解包 ApiResult.data）
  */
 export function request({ url, method = 'GET', data }) {
+  if (method !== 'GET' && rejectDuplicateSubmit(method, url, cleanData(data))) {
+    return Promise.reject(new Error('操作过于频繁，请稍候再试'))
+  }
   const doRequest = () =>
     new Promise((resolve, reject) => {
       uni.request({

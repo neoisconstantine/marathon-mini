@@ -13,12 +13,12 @@ export function getMe() {
   return request({ url: '/api/auth/me' })
 }
 
-/** 绑定手机号：POST /api/auth/bind-phone（首次登录引导授权获取手机号后回填参赛用户资料） */
-export function bindPhone(phone) {
+/** 完善用户信息：POST /api/auth/bind-phone（首次登录引导提交；name/phone 均可选，非空才更新） */
+export function bindPhone({ phone, name } = {}) {
   return request({
     url: '/api/auth/bind-phone',
     method: 'POST',
-    data: { phone },
+    data: { phone, name },
   })
 }
 

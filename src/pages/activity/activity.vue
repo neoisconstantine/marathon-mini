@@ -116,6 +116,7 @@ import { onReachBottom, onShow, onHide, onUnload } from '@dcloudio/uni-app'
 import { payForRegistration } from '@/api/payment'
 import { getEventList, mapEvent, statusWeight } from '@/api/event'
 import { createRegistration, getPhoneByCode } from '@/api/registration'
+import { getMe } from '@/api/auth'
 import { syncTabBarSelected } from '@/utils/tabbar'
 
 // 筛选 tab 定义（对齐 event.status：报名中/进行中/已结束；未发布不下发到 C 端）
@@ -274,6 +275,15 @@ function onSignup(race) {
   formRace.value = race
   form.value = { name: '', phone: '', idCard: '' }
   formVisible.value = true
+  // 预填已保存的用户资料（昵称/绑定的手机号），用户可改——报名填写的真实姓名会覆盖昵称
+  getMe()
+    .then((me) => {
+      if (formVisible.value && me) {
+        if (me.name) form.value.name = me.name
+        if (me.phone) form.value.phone = me.phone
+      }
+    })
+    .catch(() => { /* 未登录/失败不预填，用户手动输入 */ })
 }
 
 // 关闭表单（支付中不允许关闭）

@@ -1,7 +1,7 @@
 <!-- 路线地图页：默认展示地图并定位到当前位置
      赛道轨迹：拉取后端摄像头点位（GET /api/camera/list?eventId=），按点位里程排序后
      连成 polyline 展示赛道路线，markers 标注计时点位
-     赛事范围：展示进行中（status=2）+ 未开始（status=1）的所有赛事；
+     赛事范围：仅展示当前用户已报名的赛事（GET /api/registration/my，按 eventId 去重）；
      无 GPS 点位数据的赛事显示"路线信息不足"提示，不绘制 -->
 <template>
   <view class="page">
@@ -9,7 +9,7 @@
     <view class="event-bar">
       <picker mode="selector" :range="eventNames" @change="onEventChange">
         <view class="event-picker">
-          <text class="event-name">{{ currentEvent ? currentEvent.name : '选择赛事' }}</text>
+          <text class="event-name">{{ currentEvent ? currentEvent.eventName : '选择赛事' }}</text>
           <text class="event-arrow">▾</text>
         </view>
       </picker>
@@ -31,7 +31,7 @@
 
     <!-- 状态提示 -->
     <view v-if="loading" class="tip">加载中...</view>
-    <view v-else-if="!events.length" class="tip warn">暂无赛事</view>
+    <view v-else-if="!events.length" class="tip warn">暂无已报名赛事，报名后可查看赛道地图</view>
     <view v-else-if="locateFailed" class="tip warn">定位失败，已显示默认位置</view>
     <view v-else-if="!routePoints.length" class="tip warn">该赛事路线信息不足，暂无 GPS 点位</view>
     <view v-else class="tip ok">赛道共 {{ routePoints.length }} 个计时点位</view>
@@ -40,8 +40,9 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { getEventList, mapEvent } from '@/api/event'
 import { getCameraList } from '@/api/camera'
+import { getMyRegistrations } from '@/api/registration'
+import { wxLogin, getToken } from '@/api/request'
 import { smoothPolyline } from '@/utils/smooth'
 
 // ===== 地图基础状态 =====
@@ -63,10 +64,10 @@ uni.getLocation({
   },
 })
 
-// ===== 赛事选择 =====
+// ===== 赛事选择：仅我报名的赛事（来源 /api/registration/my，按 eventId 去重） =====
 const events = ref([])
 const eventIndex = ref(0)
-const eventNames = computed(() => events.value.map((e) => e.name))
+const eventNames = computed(() => events.value.map((e) => e.eventName))
 const currentEvent = computed(() => events.value[eventIndex.value] || null)
 
 function onEventChange(e) {
@@ -158,7 +159,7 @@ function loadCameras() {
     return
   }
   loading.value = true
-  getCameraList(event.id)
+  getCameraList(event.eventId)
     .then((list) => {
       cameras.value = Array.isArray(list) ? list : []
       // 点位就绪后让地图视野跳到赛道（include-points 在异步加载时不可靠，需显式调用）
@@ -175,23 +176,33 @@ function loadCameras() {
     })
 }
 
-// 初始化：拉赛事列表（仅进行中 status=2 + 未开始 status=1）→ 展示所有赛事
-// → 选中赛事后查摄像头点位，无 GPS 数据的提示"路线信息不足"
-getEventList({ pageSize: 50 })
-  .then(({ list }) => {
-    const all = (Array.isArray(list) ? list : []).map(mapEvent)
-    // 只取进行中（2）和未开始（1）的赛事
-    events.value = all.filter((e) => Number(e.statusNum) === 1 || Number(e.statusNum) === 2)
-    if (!events.value.length) {
-      loading.value = false
-      return
+// ===== 初始化：确保登录（openid→token）→ 查我的报名 → 只展示我报名过的赛事 =====
+// 报名记录按报名时间倒序（最新在前），同一赛事多次报名时按 eventId 去重保留最新一条
+async function init() {
+  try {
+    // 1. 确保已登录：无 token 时先 wx-login（后端用 openid 识别当前用户）
+    if (!getToken()) {
+      await wxLogin()
     }
-    return loadCameras()
-  })
-  .catch((err) => {
-    console.log('赛事列表加载失败', err)
+    // 2. 查我的报名记录（后端通过 token 里的 openid 解析出 personId）
+    const regs = await getMyRegistrations()
+    const seen = new Map()
+    ;(Array.isArray(regs) ? regs : []).forEach((r) => {
+      if (r && r.eventId && !seen.has(r.eventId)) seen.set(r.eventId, r)
+    })
+    events.value = Array.from(seen.values())
+    // 3. 有报名赛事时加载第一个赛事的摄像头点位
+    if (events.value.length) {
+      await loadCameras()
+    }
+  } catch (err) {
+    console.log('我的报名赛事加载失败', err)
+    // 登录/查询失败：保持空态，提示暂无已报名赛事
+  } finally {
     loading.value = false
-  })
+  }
+}
+init()
 </script>
 
 <style scoped lang="scss">

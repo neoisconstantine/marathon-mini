@@ -4,9 +4,14 @@
 </template>
 
 <script>
+import { setToken, wxLogin } from '@/api/request'
+
 export default {
   onLaunch: function () {
-    console.log('App Launch')
+    // 开发模拟模式：每次启动强制重新登录，后端用 code 生成全新模拟 openid，
+    // 相当于每次刷新都是"新用户"（可测试报名/成绩全流程）；退出登录按钮仍可主动登出
+    setToken('')
+    wxLogin().catch(() => {})
   },
   onShow: function () {
     console.log('App Show')
