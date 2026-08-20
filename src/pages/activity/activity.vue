@@ -42,6 +42,25 @@
       </view>
     </view>
 
+    <!-- 分页状态条：加载中(spinner) / 上拉加载更多 / 没有更多了 / 演示数据 -->
+    <view class="list-status" v-if="races.length">
+      <!-- 加载中 -->
+      <view class="status-row" v-if="loading">
+        <view class="spinner"></view>
+        <text class="status-text">加载中...</text>
+      </view>
+      <!-- 真实数据：未加载完提示上拉，加载完提示到底 -->
+      <template v-else-if="!isDemo">
+        <view class="status-row" v-if="!finished">
+          <text class="status-icon">↑</text>
+          <text class="status-text">上拉加载更多</text>
+        </view>
+        <text class="status-text" v-else>—— 没有更多了 ——</text>
+      </template>
+      <!-- 演示数据（后端不可用） -->
+      <text class="status-text" v-else>—— 当前为演示数据 ——</text>
+    </view>
+
     <!-- 报名表单弹层：姓名 + 手机号（微信快捷获取/手动输入）→ 支付 → 保存后台 -->
     <view class="sheet-mask" v-if="formVisible" @tap="closeForm">
       <view class="sheet" @tap.stop>
@@ -65,6 +84,13 @@
             placeholder="用于接收赛事通知" placeholder-class="ph" />
         </view>
 
+        <!-- 身份证号：报名必填（赛事实名制，后端回填参赛用户资料） -->
+        <view class="form-item">
+          <text class="form-label">身份证号</text>
+          <input class="form-input" v-model="form.idCard" maxlength="18"
+            placeholder="请输入18位身份证号码" placeholder-class="ph" />
+        </view>
+
         <!-- 微信手机号快捷获取（需已认证小程序，游客模式会失败降级手动输入） -->
         <button class="phone-btn" open-type="getPhoneNumber" @getphonenumber="onGetPhone">
           微信手机号快捷获取
@@ -82,9 +108,10 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { onReachBottom } from '@dcloudio/uni-app'
 import { payForRegistration } from '@/api/payment'
-import { getEventList, mapEvent } from '@/api/event'
+import { getEventList, mapEvent, statusWeight } from '@/api/event'
 import { createRegistration, getPhoneByCode } from '@/api/registration'
 
 // 筛选 tab 定义（对齐 event.status：报名中/进行中/已结束；未发布不下发到 C 端）
@@ -98,8 +125,8 @@ const tabs = [
 // 当前选中的 tab
 const activeTab = ref('all')
 
-// 本地演示赛事数据（后端不可用时的降级数据；字段对齐 mapEvent 输出）
-const races = ref([
+// 本地演示赛事数据（后端不可用时的降级数据；字段对齐 mapEvent 输出，无 statusNum 标记）
+const demoRaces = [
   { id: 1, name: '2026 芒市国际马拉松', date: '2026-09-06', signup: '06-01 ~ 08-31', location: '云南 · 芒市', status: '报名中', statusClass: 's-open', registered: 3280, quota: 5000, percent: 66, fee: 180 },
   { id: 2, name: '2026 大理环洱海马拉松', date: '2026-10-11', signup: '07-01 ~ 09-30', location: '云南 · 大理', status: '报名中', statusClass: 's-open', registered: 640, quota: 2000, percent: 32, fee: 150 },
   { id: 3, name: '2026 香格里拉高原马拉松', date: '2026-10-25', signup: '07-15 ~ 10-10', location: '云南 · 迪庆', status: '报名中', statusClass: 's-open', registered: 0, quota: 2000, percent: 0, fee: 200 },
@@ -108,30 +135,78 @@ const races = ref([
   { id: 6, name: '2026 昆明高原半程马拉松', date: '2026-04-20', signup: '01-15 ~ 03-31', location: '云南 · 昆明', status: '已结束', statusClass: 's-done', registered: 2980, quota: 3000, percent: 99, fee: 120 },
   { id: 7, name: '2025 抚仙湖高原马拉松', date: '2025-12-07', signup: '10-01 ~ 11-20', location: '云南 · 玉溪', status: '已结束', statusClass: 's-done', registered: 2560, quota: 2560, percent: 100, fee: 150 },
   { id: 8, name: '2025 腾冲火山热海马拉松', date: '2025-11-02', signup: '09-01 ~ 10-20', location: '云南 · 保山', status: '已结束', statusClass: 's-done', registered: 1800, quota: 2000, percent: 90, fee: 100 },
-])
+]
 
-// 按当前 tab 过滤（纯前端演示，后续替换为接口筛选 /api/event/list?status=）
+// 赛事列表（分页）：真实数据按当前 tab 从后端分页拉取；演示数据兜底（不分页）
+const races = ref([])
+
+// tab 对应后端 status 参数（全部 tab 不传，后端自动剔除未发布）
+const STATUS_PARAM = { all: undefined, open: 1, ongoing: 2, done: 3 }
+
+// 分页状态
+const pageSize = 10
+const pageNum = ref(1)
+const total = ref(0)
+const loading = ref(false)
+const finished = ref(false) // 已加载全部（没有更多）
+const isDemo = ref(false) // 后端不可用，展示演示数据
+
+// 按当前 tab 过滤：真实分页数据后端已按 tab 过滤且按状态排序，直接展示；演示数据前端按 tab 过滤
 const filteredRaces = computed(() => {
-  if (activeTab.value === 'all') {
+  if (races.value.length && races.value[0].statusNum !== undefined) {
     return races.value
+  }
+  if (activeTab.value === 'all') {
+    return [...races.value].sort((a, b) => statusWeight(a) - statusWeight(b))
   }
   const statusMap = { open: '报名中', ongoing: '进行中', done: '已结束' }
   const target = statusMap[activeTab.value]
   return races.value.filter((race) => race.status === target)
 })
 
-// ===== 赛事列表：优先拉取后端 /api/event/list（需 wx-token），失败时降级到本地演示数据 =====
-function loadEvents() {
-  getEventList()
-    .then((list) => {
-      if (Array.isArray(list) && list.length > 0) {
-        races.value = list.map(mapEvent)
-      }
+// ===== 赛事列表：分页拉取后端 /api/event/list（需 wx-token），失败时降级到本地演示数据 =====
+// append=true 表示加载更多（onReachBottom）；否则重置到第一页（首次加载 / tab 切换 / 报名后刷新）
+function loadEvents(append = false) {
+  if (loading.value) return
+  if (append && finished.value) return
+  loading.value = true
+  const pn = append ? pageNum.value + 1 : 1
+  getEventList({ status: STATUS_PARAM[activeTab.value], pageNum: pn, pageSize })
+    .then(({ list, total: t }) => {
+      const mapped = list.map(mapEvent)
+      races.value = append ? [...races.value, ...mapped] : mapped
+      total.value = t
+      pageNum.value = pn
+      finished.value = races.value.length >= t
+      isDemo.value = false
     })
     .catch((err) => {
+      // 接口不可用：展示演示数据（仅首次/重置时），不分页
+      if (!append) {
+        races.value = demoRaces
+        isDemo.value = true
+      }
+      finished.value = true
       console.log('赛事加载失败，使用演示数据', err)
     })
+    .finally(() => {
+      loading.value = false
+    })
 }
+
+// tab 切换：重置分页并重新按状态拉取
+watch(activeTab, () => {
+  pageNum.value = 1
+  total.value = 0
+  finished.value = false
+  loadEvents()
+})
+
+// 上拉触底：加载下一页（演示数据/已加载完时不触发）
+onReachBottom(() => {
+  if (isDemo.value || loading.value || finished.value) return
+  loadEvents(true)
+})
 
 // 页面加载时拉取赛事列表
 loadEvents()
@@ -141,7 +216,7 @@ loadEvents()
 // 报名表单状态
 const formVisible = ref(false)
 const formRace = ref(null)
-const form = ref({ name: '', phone: '' })
+const form = ref({ name: '', phone: '', idCard: '' })
 const submitting = ref(false)
 
 // 报名按钮：打开报名表单（已结束赛事跳成绩查询页）
@@ -151,11 +226,11 @@ function onSignup(race) {
     return
   }
   if (race.status !== '报名中') {
-    uni.showToast({ title: '该赛事暂不可报名', icon: 'none' })
+    uni.showToast({ title: '该赛事暂不可报名', icon: 'none', size: 'large' })
     return
   }
   formRace.value = race
-  form.value = { name: '', phone: '' }
+  form.value = { name: '', phone: '', idCard: '' }
   formVisible.value = true
 }
 
@@ -174,17 +249,17 @@ function onGetPhone(e) {
       .then((phone) => {
         if (phone) {
           form.value.phone = phone
-          uni.showToast({ title: '手机号已自动填充', icon: 'none' })
+          uni.showToast({ title: '手机号已自动填充', icon: 'none', size: 'large' })
         } else {
-          uni.showToast({ title: '获取失败，请手动输入', icon: 'none' })
+          uni.showToast({ title: '获取失败，请手动输入', icon: 'none', size: 'large' })
         }
       })
       .catch((err) => {
-        uni.showToast({ title: err.message || '获取失败，请手动输入', icon: 'none' })
+        uni.showToast({ title: err.message || '获取失败，请手动输入', icon: 'none', size: 'large' })
       })
   } else {
     // 授权拒绝 / 无权限（游客模式）等场景
-    uni.showToast({ title: '暂无法快捷获取，请手动输入', icon: 'none' })
+    uni.showToast({ title: '暂无法快捷获取，请手动输入', icon: 'none', size: 'large' })
   }
 }
 
@@ -192,12 +267,17 @@ function onGetPhone(e) {
 function onSubmitForm() {
   const name = String(form.value.name || '').trim()
   const phone = String(form.value.phone || '').trim()
+  const idCard = String(form.value.idCard || '').trim()
   if (!name) {
-    uni.showToast({ title: '请输入姓名', icon: 'none' })
+    uni.showToast({ title: '请输入姓名', icon: 'none', size: 'large' })
     return
   }
   if (!/^1\d{10}$/.test(phone)) {
-    uni.showToast({ title: '请输入正确的11位手机号', icon: 'none' })
+    uni.showToast({ title: '请输入正确的11位手机号', icon: 'none', size: 'large' })
+    return
+  }
+  if (!/^\d{17}[\dXx]$/.test(idCard)) {
+    uni.showToast({ title: '请输入正确的18位身份证号码', icon: 'none', size: 'large' })
     return
   }
   if (submitting.value) return
@@ -206,22 +286,25 @@ function onSubmitForm() {
   payForRegistration(formRace.value, formRace.value.fee * 100)
     .then((result) => {
       if (!result.success) {
-        uni.showToast({ title: '已取消支付', icon: 'none' })
+        uni.showToast({ title: '已取消支付', icon: 'none', size: 'large' })
         return
       }
-      // 2. 支付成功：报名信息关联赛事保存到后台（姓名/手机号回填参赛用户资料 + 创建报名记录）
+      // 2. 支付成功：报名信息关联赛事保存到后台（姓名/手机号/身份证回填参赛用户资料 + 创建报名记录）
       return createRegistration({
         eventId: formRace.value.id,
         name,
         phone,
+        idCard,
       }).then(() => {
         formVisible.value = false
         uni.showToast({ title: '报名成功，请留意短信通知', icon: 'success' })
+        // 3. 报名成功：重新拉取赛事列表，刷新已报名人数显示（后端 registered 已 +1）
+        loadEvents()
       })
     })
     .catch((err) => {
       console.log('报名失败', err)
-      uni.showToast({ title: err.message || '报名失败，请重试', icon: 'none' })
+      uni.showToast({ title: err.message || '报名失败，请重试', icon: 'none', size: 'large' })
     })
     .finally(() => {
       submitting.value = false
@@ -263,6 +346,46 @@ function onSubmitForm() {
 /* ===== 赛事卡片 ===== */
 .race-list {
   padding: 24rpx 24rpx 0;
+}
+
+/* 分页状态条（加载中/上拉加载更多/没有更多） */
+.list-status {
+  padding: 24rpx 0 8rpx;
+  display: flex;
+  justify-content: center;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.status-text {
+  font-size: 24rpx;
+  color: #9CA3AF;
+}
+
+.status-icon {
+  font-size: 28rpx;
+  color: #3B82F6;
+  line-height: 1;
+}
+
+/* 加载中旋转图标 */
+.spinner {
+  width: 28rpx;
+  height: 28rpx;
+  border: 4rpx solid rgba(59, 130, 246, 0.2);
+  border-top-color: #3B82F6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .race-card {

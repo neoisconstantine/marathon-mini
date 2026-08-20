@@ -12,12 +12,16 @@ const STATUS_CLASS = { 1: 's-open', 2: 's-ongoing', 3: 's-done' }
 // 后端 Event 暂无报名费字段，报名支付模拟暂用本地默认值（待后端补充费用字段后移除）
 const DEFAULT_FEE = 150
 
-/** 赛事列表（分页）：GET /api/event/list；status 传数字（1/2/3）可服务端过滤，不传时后端自动剔除未发布 */
+/** 赛事列表（分页）：GET /api/event/list；status 传数字（1/2/3）可服务端过滤，不传时后端自动剔除未发布
+ *  返回 { list, total }，供列表页分页（onReachBottom 加载更多）使用 */
 export function getEventList({ status, pageNum = 1, pageSize = 10 } = {}) {
   return request({
     url: '/api/event/list',
     data: { status, pageNum, pageSize },
-  }).then((data) => (data && data.list) || [])
+  }).then((data) => ({
+    list: (data && data.list) || [],
+    total: (data && data.total) || 0,
+  }))
 }
 
 /** 赛事详情：GET /api/event/detail?id= */
@@ -40,6 +44,23 @@ function fmtSignup(start, end) {
 function calcPercent(registered, quota) {
   if (!quota) return 0
   return Math.min(100, Math.max(0, Math.round(((registered || 0) / quota) * 100)))
+}
+
+/**
+ * 赛事状态排序权重：进行中=0，报名中=1，已结束=2
+ * 用于"进行中 → 报名中 → 已结束"的列表排序
+ * 兼容 mapEvent 输出（statusNum）与手写演示数据（status 文案）
+ */
+export function statusWeight(race) {
+  const n = race && race.statusNum
+  if (n !== undefined && n !== null) {
+    if (n === 2) return 0 // 进行中
+    if (n === 1) return 1 // 报名中
+    return 2 // 已结束（含未发布兜底）
+  }
+  if (race && race.status === '进行中') return 0
+  if (race && race.status === '报名中') return 1
+  return 2
 }
 
 /**

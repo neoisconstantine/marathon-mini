@@ -13,6 +13,15 @@ export function getMe() {
   return request({ url: '/api/auth/me' })
 }
 
+/** 绑定手机号：POST /api/auth/bind-phone（首次登录引导授权获取手机号后回填参赛用户资料） */
+export function bindPhone(phone) {
+  return request({
+    url: '/api/auth/bind-phone',
+    method: 'POST',
+    data: { phone },
+  })
+}
+
 /** 是否已登录：本地是否有 wx-token */
 export function isLoggedIn() {
   return !!getToken()

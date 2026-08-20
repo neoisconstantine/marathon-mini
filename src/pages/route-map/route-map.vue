@@ -42,6 +42,7 @@
 import { ref, computed } from 'vue'
 import { getEventList, mapEvent } from '@/api/event'
 import { getCameraList } from '@/api/camera'
+import { smoothPolyline } from '@/utils/smooth'
 
 // ===== 地图基础状态 =====
 const latitude = ref(24.8801)
@@ -76,11 +77,12 @@ function onEventChange(e) {
 // ===== 摄像头点位 → 赛道轨迹 =====
 const loading = ref(true)
 const cameras = ref([])
+// 轨迹点：摄像头 GPS 点位按里程排序后经 Catmull-Rom 样条插值平滑（点位稀疏，直线连会显生硬）
 const routePoints = computed(() =>
-  sortCameras(cameras.value).map((c) => ({
-    latitude: Number(c.lat),
-    longitude: Number(c.lng),
-  }))
+  smoothPolyline(
+    sortCameras(cameras.value).map((c) => [Number(c.lat), Number(c.lng)]),
+    10
+  ).map(([latitude, longitude]) => ({ latitude, longitude }))
 )
 // polyline：绿色带箭头方向线
 const polyline = computed(() =>
@@ -176,7 +178,7 @@ function loadCameras() {
 // 初始化：拉赛事列表（仅进行中 status=2 + 未开始 status=1）→ 展示所有赛事
 // → 选中赛事后查摄像头点位，无 GPS 数据的提示"路线信息不足"
 getEventList({ pageSize: 50 })
-  .then((list) => {
+  .then(({ list }) => {
     const all = (Array.isArray(list) ? list : []).map(mapEvent)
     // 只取进行中（2）和未开始（1）的赛事
     events.value = all.filter((e) => Number(e.statusNum) === 1 || Number(e.statusNum) === 2)

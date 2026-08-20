@@ -80,6 +80,14 @@
         <text class="menu-title">关于我们</text>
         <text class="menu-arrow">›</text>
       </view>
+      <!-- 常见问题：问号（占位提示） -->
+      <view class="menu-row" @tap="todoTip">
+        <view class="menu-icon tint-amber">
+          <text class="sh-faq">?</text>
+        </view>
+        <text class="menu-title">常见问题</text>
+        <text class="menu-arrow">›</text>
+      </view>
     </view>
 
     <!-- 版本信息 -->
@@ -440,6 +448,21 @@ function todoTip() {
   height: 12rpx;
   border-radius: 3rpx;
   background-color: #0D9488;
+}
+
+/* 问号（常见问题）：绝对定位铺满图标盒并居中 */
+.sh-faq {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  text-align: center;
+  line-height: 56rpx;
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #D97706;
 }
 
 /* ===== 版本信息 ===== */

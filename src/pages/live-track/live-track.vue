@@ -43,6 +43,7 @@ import { ref, computed } from 'vue'
 import { getCameraList } from '@/api/camera'
 import { getMyRegistrations } from '@/api/registration'
 import { wxLogin, getToken } from '@/api/request'
+import { smoothPolyline } from '@/utils/smooth'
 
 // ===== 地图基础状态（默认中心：芒市，定位成功后切换当前位置） =====
 const latitude = ref(24.8801)
@@ -70,11 +71,12 @@ const NO_FINISHED = '暂无已完赛的赛事'
 // ===== 摄像头点位 → 赛道轨迹 =====
 const loading = ref(true)
 const cameras = ref([])
+// 轨迹点：摄像头 GPS 点位按里程排序后经 Catmull-Rom 样条插值平滑（点位稀疏，直线连会显生硬）
 const routePoints = computed(() =>
-  sortCameras(cameras.value).map((c) => ({
-    latitude: Number(c.lat),
-    longitude: Number(c.lng),
-  }))
+  smoothPolyline(
+    sortCameras(cameras.value).map((c) => [Number(c.lat), Number(c.lng)]),
+    10
+  ).map(([latitude, longitude]) => ({ latitude, longitude }))
 )
 // polyline：绿色带箭头方向线
 const polyline = computed(() =>

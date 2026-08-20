@@ -8,6 +8,7 @@
  *   - 业务接口：请求头携带 wx-token（注意：不是 Authorization！），401 时自动重新登录并重试一次
  *   - 统一响应：ApiResult = { code, message, data }，code=0 表示成功
  */
+import { userState } from '@/store/user'
 
 // 后端地址（微信开发者工具需开启"不校验合法域名"才能访问 http://localhost:8080）
 // 真机调试：手机与电脑需同一 WiFi，用电脑局域网 IP 替换 localhost（192.168.31.162）
@@ -20,6 +21,8 @@ export function getToken() {
 
 export function setToken(token) {
   uni.setStorageSync(TOKEN_KEY, token)
+  // 同步全局登录态：各页面入口可见性据此响应式更新
+  userState.token = token
 }
 
 /** 微信登录换取小程序 token（dev 模式后端 appid 为空，任意 code 可用） */
@@ -31,12 +34,23 @@ export function wxLogin() {
         method: 'POST',
         data: { code },
         success: (res) => {
-          const body = res.data
+          let body = res.data
+          if (typeof body === 'string') {
+            try {
+              body = JSON.parse(body)
+            } catch (e) {
+              body = null
+            }
+          }
           if (body && body.code === 0 && body.data && body.data.token) {
             setToken(body.data.token)
+            // 首次登录（后端自动注册的新用户）：弹出全局模态引导授权手机号
+            if (body.data.isNewUser) {
+              userState.guideVisible = true
+            }
             resolve(body.data.token)
           } else {
-            reject(new Error((body && body.message) || '登录失败'))
+            reject(new Error((body && (body.message || body.msg)) || '登录失败'))
           }
         },
         fail: reject,
@@ -82,15 +96,26 @@ export function request({ url, method = 'GET', data }) {
         data: cleanData(data),
         header: { 'Content-Type': 'application/json', 'wx-token': getToken() },
         success: (res) => {
-          const body = res.data
+          // 微信端对无 charset 的 application/json 响应可能不自动 JSON.parse（res.data 为字符串），
+          // 这里兜底解析，确保能取到后端返回的错误 message/msg
+          let body = res.data
+          if (typeof body === 'string') {
+            try {
+              body = JSON.parse(body)
+            } catch (e) {
+              body = null
+            }
+          }
+          // 兼容后端两套响应结构：ApiResult 用 message 字段，若依异常处理器返回 AjaxResult 用 msg 字段
+          const errMsg = body && (body.message || body.msg)
           if (res.statusCode === 401) {
-            const err = new Error((body && body.message) || '未登录或登录已过期')
+            const err = new Error(errMsg || '未登录或登录已过期')
             err.code = 401
             reject(err)
           } else if (body && body.code === 0) {
             resolve(body.data)
           } else {
-            reject(new Error((body && body.message) || '请求失败'))
+            reject(new Error(errMsg || '请求失败'))
           }
         },
         fail: reject,

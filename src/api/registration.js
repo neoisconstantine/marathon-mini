@@ -6,13 +6,13 @@ import { request } from './request'
 
 /**
  * 创建报名（支付成功后调用）：POST /api/registration/create
- * @param {Object} param0 { eventId, name, phone }，name/phone 非空时后端回填到参赛用户资料
+ * @param {Object} param0 { eventId, name, phone, idCard }，name/phone/idCard 非空时后端回填到参赛用户资料
  */
-export function createRegistration({ eventId, name, phone }) {
+export function createRegistration({ eventId, name, phone, idCard }) {
   return request({
     url: '/api/registration/create',
     method: 'POST',
-    data: { eventId, name, phone },
+    data: { eventId, name, phone, idCard },
   })
 }
 

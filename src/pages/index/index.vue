@@ -48,7 +48,7 @@
           <text class="entry-sub">赛事动态早知道</text>
         </view>
       </view>
-      <!-- 成绩查询：放大镜图标（跳转成绩查询页，选已结束赛事查成绩） -->
+      <!-- 成绩查询：放大镜图标（需登录：跳转成绩查询页，选已结束赛事查成绩） -->
       <view class="entry-item" @tap="goResult">
         <view class="sicon tint-teal">
           <view class="sh-mag-lens"></view>
@@ -59,17 +59,20 @@
           <text class="entry-sub">完赛成绩一键查</text>
         </view>
       </view>
-      <!-- 常见问题：问号图标（占位提示） -->
-      <view class="entry-item" @tap="todoTip">
-        <view class="sicon tint-amber">
-          <text class="sh-q">?</text>
+      <!-- 我的报名：勾选清单图标（需登录：跳转我的报名列表页） -->
+      <view class="entry-item" @tap="goMyRegistrations">
+        <view class="sicon tint-green">
+          <view class="sh-list-line l1"></view>
+          <view class="sh-list-line l2"></view>
+          <view class="sh-list-line l3"></view>
+          <view class="sh-list-check"></view>
         </view>
         <view class="entry-text">
-          <text class="entry-title">常见问题</text>
-          <text class="entry-sub">报名规则与答疑</text>
+          <text class="entry-title">我的报名</text>
+          <text class="entry-sub">查看我的报名记录</text>
         </view>
       </view>
-      <!-- 路线地图：图钉图标（跳转路线地图页，内容待实现） -->
+      <!-- 路线地图：图钉图标（需登录：跳转路线地图页） -->
       <view class="entry-item" @tap="goRouteMap">
         <view class="sicon tint-teal">
           <view class="sh-pin-head"></view>
@@ -80,7 +83,7 @@
           <text class="entry-sub">赛道路线一键查看</text>
         </view>
       </view>
-      <!-- 实时轨迹：雷达图标（跳转实时轨迹页，内容待实现：当前参与赛事的位置轨迹展示） -->
+      <!-- 实时轨迹：雷达图标（需登录：当前参与赛事的位置轨迹展示） -->
       <view class="entry-item" @tap="goLiveTrack">
         <view class="sicon tint-green">
           <view class="sh-track-ring r1"></view>
@@ -139,9 +142,9 @@
 
 <script setup>
 import { ref } from 'vue'
-import { onPageScroll } from '@dcloudio/uni-app'
+import { onPageScroll, onShow } from '@dcloudio/uni-app'
 import { getNoticeList } from '@/api/content'
-import { getEventList, mapEvent } from '@/api/event'
+import { getEventList, mapEvent, statusWeight } from '@/api/event'
 import * as authApi from '@/api/auth'
 
 // 状态栏高度：自定义导航下需要手动占位（刘海屏适配）
@@ -250,14 +253,18 @@ const hotRaces = ref([
   { id: 3, name: '2026 大理环洱海马拉松', date: '2026-10-11', location: '云南 · 大理', status: '报名中', registered: 640, quota: 2000, percent: 32 },
 ])
 
-// 拉取热门赛事（/api/event/list）：按已报名人数取前 3，失败时保持演示数据
+// 拉取热门赛事（/api/event/list）：按 进行中→报名中→已结束 排序，同状态按报名人数取前 3，失败时保持演示数据
 function loadHotRaces() {
   getEventList()
-    .then((list) => {
+    .then(({ list }) => {
       if (Array.isArray(list) && list.length > 0) {
         hotRaces.value = list
           .map(mapEvent)
-          .sort((a, b) => b.registered - a.registered)
+          .sort((a, b) => {
+            const diff = statusWeight(a) - statusWeight(b)
+            if (diff !== 0) return diff
+            return b.registered - a.registered
+          })
           .slice(0, 3)
       }
     })
@@ -268,6 +275,12 @@ function loadHotRaces() {
 
 // 页面加载时拉取热门赛事
 loadHotRaces()
+
+// tab 页每次显示（如从活动页报名后切回）重新拉取热门赛事，保持已报名人数显示最新
+// 注：首次登录的手机号授权引导由全局组件 phone-guide 处理（登录成功且 isNewUser 时触发）
+onShow(() => {
+  loadHotRaces()
+})
 
 // ===== 页面骨架阶段的入口跳转 =====
 
@@ -283,16 +296,20 @@ function goNews() {
 
 // 打开路线地图页（需登录：轨迹查看属个人服务）
 function goRouteMap() {
-  requireLoginThen(() => uni.navigateTo({ url: '/pages/route-map/route-map' }))
+  requireLoginThen(() => uni.navigateTo({ url: '/pages/route-map/route-map' }), '路线地图')
 }
 
 // 打开实时轨迹页（需登录：基于我的报名赛事生成轨迹）
 function goLiveTrack() {
-  requireLoginThen(() => uni.navigateTo({ url: '/pages/live-track/live-track' }))
+  requireLoginThen(() => uni.navigateTo({ url: '/pages/live-track/live-track' }), '实时轨迹')
 }
 
-/** 轨迹类功能统一登录门槛：未登录弹窗提示，确认后静默登录再执行跳转 */
-function requireLoginThen(afterLogin) {
+/**
+ * 需要登录的功能统一门槛：未登录弹窗提示，确认后静默登录再执行跳转
+ * 注：首次登录（新用户）时，登录成功后由全局组件 phone-guide 弹出手机号授权引导（模态），
+ * 授权/拒绝后才能操作目标页面
+ */
+function requireLoginThen(afterLogin, feature = '该功能') {
   const { isLoggedIn, ensureLogin } = authApi
   if (isLoggedIn()) {
     afterLogin()
@@ -300,7 +317,7 @@ function requireLoginThen(afterLogin) {
   }
   uni.showModal({
     title: '未登录',
-    content: '轨迹查看需要先登录，是否立即登录？',
+    content: `${feature}需要先登录，是否立即登录？`,
     success: async (res) => {
       if (!res.confirm) return
       uni.showLoading({ title: '登录中' })
@@ -316,9 +333,14 @@ function requireLoginThen(afterLogin) {
   })
 }
 
-// 打开成绩查询页（选择已结束赛事查询成绩）
+// 打开我的报名页（需登录：点击时未登录先引导登录，登录后进入）
+function goMyRegistrations() {
+  requireLoginThen(() => uni.navigateTo({ url: '/pages/my-registrations/my-registrations' }), '我的报名')
+}
+
+// 打开成绩查询页（需登录：点击时未登录先引导登录，登录后进入）
 function goResult() {
-  uni.navigateTo({ url: '/pages/result/result' })
+  requireLoginThen(() => uni.navigateTo({ url: '/pages/result/result' }), '成绩查询')
 }
 
 // 未开发功能占位提示（后续接入对应接口后替换为真实跳转）
@@ -579,6 +601,40 @@ loadNotices()
   font-size: 52rpx;
   font-weight: 700;
   color: #D97706;
+}
+
+/* 勾选清单（我的报名）：三条横线 + 右上对勾圆，示意报名记录列表 */
+.sh-list-line {
+  position: absolute;
+  left: 18rpx;
+  width: 26rpx;
+  height: 4rpx;
+  border-radius: 2rpx;
+  background-color: #16A34A;
+}
+.sh-list-line.l1 { top: 20rpx; }
+.sh-list-line.l2 { top: 30rpx; }
+.sh-list-line.l3 { top: 40rpx; }
+
+.sh-list-check {
+  position: absolute;
+  left: 50rpx;
+  top: 24rpx;
+  width: 24rpx;
+  height: 24rpx;
+  border-radius: 50%;
+  background-color: #16A34A;
+}
+.sh-list-check::after {
+  content: '';
+  position: absolute;
+  left: 8rpx;
+  top: 5rpx;
+  width: 7rpx;
+  height: 11rpx;
+  border-right: 3rpx solid #ffffff;
+  border-bottom: 3rpx solid #ffffff;
+  transform: rotate(45deg);
 }
 
 /* 定位图钉（路线地图）：圆头 + 白芯 + 下尖角 */

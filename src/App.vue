@@ -1,3 +1,8 @@
+<template>
+  <!-- 全局组件：首次登录手机号授权引导（模态，任意页面生效） -->
+  <phone-guide />
+</template>
+
 <script>
 export default {
   onLaunch: function () {
