@@ -72,10 +72,9 @@
       <!-- 关于我们：信息圈（占位提示） -->
       <view class="menu-row" @tap="todoTip">
         <view class="menu-icon tint-teal">
-          <view class="sh-info">
-            <view class="sh-info-dot"></view>
-            <view class="sh-info-bar"></view>
-          </view>
+          <view class="sh-info"></view>
+          <view class="sh-info-dot"></view>
+          <view class="sh-info-bar"></view>
         </view>
         <text class="menu-title">关于我们</text>
         <text class="menu-arrow">›</text>
@@ -425,7 +424,9 @@ function todoTip() {
 .sh-knob.k2 { left: 34rpx; top: 24rpx; }
 .sh-knob.k3 { left: 18rpx; top: 33rpx; }
 
-/* 信息圈（关于我们） */
+/* 信息圈（关于我们）：圆环 + "i"的点/竖杠平铺为 menu-icon 直接子元素（与其他图标同构，
+   定位基准统一为 56rpx 图标盒；曾嵌套在圆环内，子元素基准是圆环的 padding box（不含4rpx边框），
+   坐标全部右偏下坠，故拍平规避） */
 .sh-info {
   position: absolute;
   left: 14rpx;
@@ -436,10 +437,12 @@ function todoTip() {
   border: 4rpx solid #0D9488;
   box-sizing: border-box;
 }
+/* 圆环中心在图标盒的 (28, 26)；点宽 6 → left 25 精确水平居中；
+   内缘 y 16..36，点上缘留白 2rpx（top 18），竖杠 26..34 下缘留白 2rpx，上下对称 */
 .sh-info-dot {
   position: absolute;
   left: 25rpx;
-  top: 17rpx;
+  top: 18rpx;
   width: 6rpx;
   height: 6rpx;
   border-radius: 50%;
@@ -450,7 +453,7 @@ function todoTip() {
   left: 25rpx;
   top: 26rpx;
   width: 6rpx;
-  height: 12rpx;
+  height: 8rpx;
   border-radius: 3rpx;
   background-color: #0D9488;
 }

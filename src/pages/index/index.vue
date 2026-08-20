@@ -581,7 +581,8 @@ loadNotices()
 .sh-doc-line.l2 { top: 20rpx; }
 .sh-doc-line.l3 { top: 30rpx; width: 10rpx; }
 
-/* 放大镜（成绩查询） */
+/* 放大镜（成绩查询）：镜片圆心(37,33)半径15；手柄沿45°方向从圆周边缘(52.5,42.5)
+   向右下延伸16rpx——起端精确落在镜片边框上（圆心距=半径），视觉上与镜圈严丝合缝连成一体 */
 .sh-mag-lens {
   position: absolute;
   left: 22rpx;
@@ -594,13 +595,14 @@ loadNotices()
 }
 .sh-mag-handle {
   position: absolute;
-  left: 50rpx;
-  top: 46rpx;
+  left: 45rpx;
+  top: 39rpx;
   width: 18rpx;
   height: 6rpx;
   border-radius: 3rpx;
   background-color: #0D9488;
   transform: rotate(45deg);
+  transform-origin: 0 50%;
 }
 
 /* 问号（常见问题）：绝对定位铺满图标盒并居中，与其他三个图标视觉对齐 */
