@@ -26,7 +26,7 @@
       <view v-for="item in registrations" :key="item.id" class="reg-card mz-card">
         <view class="reg-top">
           <text class="reg-event">{{ item.eventName || '未知赛事' }}</text>
-          <text class="reg-status" :class="'st-' + item.eventStatus">{{ statusText(item.eventStatus) }}</text>
+          <text class="reg-status" :class="'st-' + item.status">{{ statusText(item.status) }}</text>
         </view>
         <view class="reg-mid">
           <view class="bib-box">
@@ -97,12 +97,13 @@ function goActivity() {
   uni.switchTab({ url: '/pages/activity/activity' })
 }
 
-/** 赛事状态 1=未开始 2=进行中 3=已结束 */
+/** 报名状态 0=已报名 1=已审核 2=已退赛 */
 function statusText(s) {
   s = Number(s)
-  if (s === 2) return '进行中'
-  if (s === 3) return '已结束'
-  return '未开始'
+  if (s === 0) return '已报名'
+  if (s === 1) return '已审核'
+  if (s === 2) return '已退赛'
+  return '未知'
 }
 
 function formatTime(t) {
@@ -203,9 +204,9 @@ function formatTime(t) {
   font-size: 22rpx;
   border-radius: 20rpx;
 }
-.st-1 { color: #D97706; background-color: #FEF3C7; }
-.st-2 { color: #16A34A; background-color: #DCFCE7; }
-.st-3 { color: #6B7280; background-color: #F3F4F6; }
+.st-0 { color: #D97706; background-color: #FEF3C7; }
+.st-1 { color: #16A34A; background-color: #DCFCE7; }
+.st-2 { color: #6B7280; background-color: #F3F4F6; }
 
 .reg-mid {
   margin-top: 20rpx;

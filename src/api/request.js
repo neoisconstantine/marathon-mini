@@ -10,9 +10,10 @@
  */
 import { userState } from '@/store/user'
 
-// 后端地址（微信开发者工具需开启"不校验合法域名"才能访问 http://localhost:8080）
-// 真机调试：手机与电脑需同一 WiFi，用电脑局域网 IP 替换 localhost（192.168.31.162）
-const BASE_URL = 'http://192.168.31.162:8080'
+// 后端地址：通过环境变量配置，开发环境和生产环境自动切换
+// .env.development: http://localhost:7070
+// .env.production: http://192.168.10.24:7070
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:7070'
 const TOKEN_KEY = 'wx_token'
 
 export function getToken() {

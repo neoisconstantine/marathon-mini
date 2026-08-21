@@ -32,5 +32,8 @@ project.private.config.json
 log.txt
 backgroud.png
 
+# 生产环境配置文件（包含服务器地址，不提交git）
+.env.production
+
 # AI 工作文档（不跟踪）
 AGENTS.md

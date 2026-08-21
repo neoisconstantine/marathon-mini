@@ -1,6 +1,6 @@
 {
     "name" : "马拉松报名",
-    "appid" : "wx386c75b104462a36",
+    "appid" : "wxf0f37efe07e429b3",
     "description" : "马拉松报名管理系统-小程序端",
     "versionName" : "1.0.0",
     "versionCode" : "100",
@@ -50,7 +50,7 @@
     "quickapp" : {},
     /* 小程序特有相关 */
     "mp-weixin" : {
-        "appid" : "wx386c75b104462a36",
+        "appid" : "wxf0f37efe07e429b3",
         "setting" : {
             "urlCheck" : false
         },
