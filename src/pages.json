@@ -53,6 +53,12 @@
 			"style": {
 				"navigationBarTitleText": "我的成绩"
 			}
+		},
+		{
+			"path": "pages/run-track/run-track",
+			"style": {
+				"navigationBarTitleText": "运动记录"
+			}
 		}
 	],
 	"globalStyle": {

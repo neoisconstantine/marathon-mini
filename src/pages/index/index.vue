@@ -86,16 +86,18 @@
           <text class="entry-sub">赛道路线一键查看</text>
         </view>
       </view>
-      <!-- 实时轨迹：雷达图标（需登录：当前参与赛事的位置轨迹展示） -->
-      <view class="entry-item" @tap="goLiveTrack">
+      <!-- 运动记录：跑步图标（GPS记录运动轨迹） -->
+      <view class="entry-item" @tap="goRunTrack">
         <view class="sicon tint-green">
-          <view class="sh-track-ring r1"></view>
-          <view class="sh-track-ring r2"></view>
-          <view class="sh-track-dot"></view>
+          <view class="sh-run-body"></view>
+          <view class="sh-run-arm a1"></view>
+          <view class="sh-run-arm a2"></view>
+          <view class="sh-run-leg l1"></view>
+          <view class="sh-run-leg l2"></view>
         </view>
         <view class="entry-text">
-          <text class="entry-title">实时轨迹</text>
-          <text class="entry-sub">赛后比赛轨迹展示</text>
+          <text class="entry-title">运动记录</text>
+          <text class="entry-sub">GPS记录运动轨迹</text>
         </view>
       </view>
     </view>
@@ -307,9 +309,9 @@ function goRouteMap() {
   requireLoginThen(() => uni.navigateTo({ url: '/pages/route-map/route-map' }), '路线地图')
 }
 
-// 打开实时轨迹页（需登录：基于我的报名赛事生成轨迹）
-function goLiveTrack() {
-  requireLoginThen(() => uni.navigateTo({ url: '/pages/live-track/live-track' }), '实时轨迹')
+// 打开运动记录页（GPS轨迹记录）
+function goRunTrack() {
+  uni.navigateTo({ url: '/pages/run-track/run-track' })
 }
 
 /**
@@ -857,5 +859,56 @@ loadNotices()
 /* 自定义 tabBar 悬浮占位（不占文档流，需预留底部高度） */
 .tabbar-space {
   height: 100rpx;
+}
+
+/* 跑步图标（运动记录）：更简洁的人形 */
+.sh-run-body {
+  position: absolute;
+  left: 32rpx;
+  top: 14rpx;
+  width: 18rpx;
+  height: 18rpx;
+  border-radius: 50%;
+  background-color: #16A34A;
+}
+
+.sh-run-leg {
+  position: absolute;
+  width: 6rpx;
+  height: 28rpx;
+  border-radius: 3rpx;
+  background-color: #16A34A;
+}
+
+.sh-run-leg.l1 {
+  left: 32rpx;
+  top: 36rpx;
+  transform: rotate(-25deg);
+}
+
+.sh-run-leg.l2 {
+  left: 44rpx;
+  top: 36rpx;
+  transform: rotate(25deg);
+}
+
+.sh-run-arm {
+  position: absolute;
+  width: 5rpx;
+  height: 22rpx;
+  border-radius: 2rpx;
+  background-color: #16A34A;
+}
+
+.sh-run-arm.a1 {
+  left: 24rpx;
+  top: 24rpx;
+  transform: rotate(40deg);
+}
+
+.sh-run-arm.a2 {
+  left: 52rpx;
+  top: 24rpx;
+  transform: rotate(-40deg);
 }
 </style>
